@@ -531,6 +531,9 @@ Storage::put_in_secondary_storage(const Digest& key,
         key.to_string(),
         entry->url_for_logging,
         ms);
+    if (stored) {
+      primary.increment_statistic(core::Statistic::secondary_storage_written);
+    }
   }
 }
 
