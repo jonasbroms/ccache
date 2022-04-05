@@ -498,6 +498,8 @@ Storage::get_from_secondary_storage(const Digest& key)
           ms);
       primary.increment_statistic(core::Statistic::secondary_storage_miss);
     }
+    primary.increment_statistic(core::Statistic::secondary_storage_read_time,
+                                ms);
   }
 
   return nonstd::nullopt;
@@ -533,6 +535,8 @@ Storage::put_in_secondary_storage(const Digest& key,
         ms);
     if (stored) {
       primary.increment_statistic(core::Statistic::secondary_storage_written);
+      primary.increment_statistic(core::Statistic::secondary_storage_write_time,
+                                  ms);
     }
   }
 }

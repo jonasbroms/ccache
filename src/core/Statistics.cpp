@@ -108,6 +108,8 @@ const StatisticsField k_statistics_fields[] = {
   FIELD(secondary_storage_miss, nullptr),
   FIELD(secondary_storage_timeout, nullptr),
   FIELD(secondary_storage_written, nullptr),
+  FIELD(secondary_storage_read_time, nullptr),
+  FIELD(secondary_storage_write_time, nullptr),
   FIELD(stats_zeroed_timestamp, nullptr),
   FIELD(
     unsupported_code_directive, "Unsupported code directive", FLAG_UNCACHEABLE),
@@ -325,6 +327,15 @@ Statistics::format_human_readable(const Config& config,
     }
     if (verbosity > 1 || sec_written > 0) {
       table.add_row({"  Written:", sec_written});
+    }
+    if (verbosity > 0 && sec_hits > 0) {
+      const uint64_t sec_read_time = S(secondary_storage_read_time) / sec_hits;
+      table.add_row({"  Avg read time (ms):", sec_read_time});
+    }
+    if (verbosity > 0 && sec_written > 0) {
+      const uint64_t sec_write_time =
+        S(secondary_storage_write_time) / sec_written;
+      table.add_row({"  Avg write time (ms):", sec_write_time});
     }
   }
 
