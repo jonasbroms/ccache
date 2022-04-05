@@ -107,6 +107,7 @@ const StatisticsField k_statistics_fields[] = {
   FIELD(secondary_storage_hit, nullptr),
   FIELD(secondary_storage_miss, nullptr),
   FIELD(secondary_storage_timeout, nullptr),
+  FIELD(secondary_storage_written, nullptr),
   FIELD(stats_zeroed_timestamp, nullptr),
   FIELD(
     unsupported_code_directive, "Unsupported code directive", FLAG_UNCACHEABLE),
@@ -303,8 +304,10 @@ Statistics::format_human_readable(const Config& config,
   const uint64_t sec_misses = S(secondary_storage_miss);
   const uint64_t sec_errors = S(secondary_storage_error);
   const uint64_t sec_timeouts = S(secondary_storage_timeout);
+  const uint64_t sec_written = S(secondary_storage_written);
 
-  if (verbosity > 1 || sec_hits + sec_misses + sec_errors + sec_timeouts > 0) {
+  if (verbosity > 1
+      || sec_hits + sec_misses + sec_errors + sec_timeouts + sec_written > 0) {
     table.add_heading("Secondary storage:");
     table.add_row({
       "  Hits:",
@@ -319,6 +322,9 @@ Statistics::format_human_readable(const Config& config,
     }
     if (verbosity > 1 || sec_timeouts > 0) {
       table.add_row({"  Timeouts:", sec_timeouts});
+    }
+    if (verbosity > 1 || sec_written > 0) {
+      table.add_row({"  Written:", sec_written});
     }
   }
 

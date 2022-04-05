@@ -65,6 +65,7 @@ enum class Statistic {
   secondary_storage_timeout = 40,
   recache = 41,
   unsupported_environment_variable = 42,
+  secondary_storage_written = 43,
 
   END
 };
