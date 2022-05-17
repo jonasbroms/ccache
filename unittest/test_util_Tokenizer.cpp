@@ -1,4 +1,4 @@
-// Copyright (C) 2021 Joel Rosdahl and other contributors
+// Copyright (C) 2021-2022 Joel Rosdahl and other contributors
 //
 // See doc/AUTHORS.adoc for a complete list of contributors.
 //
@@ -27,26 +27,27 @@ TEST_CASE("util::Tokenizer")
   struct SplitTest
   {
     SplitTest(Mode mode,
-              IncludeDelimiter includeDelimiter = IncludeDelimiter::no)
+              IncludeDelimiter include_delimiter = IncludeDelimiter::no)
       : m_mode(mode),
-        m_includeDelimiter(includeDelimiter)
+        m_include_delimiter(include_delimiter)
     {
     }
 
     void
     operator()(const char* input,
                const char* separators,
-               const std::vector<std::string>& expected)
+               const std::vector<std::string>& expected) const
     {
       const auto res =
-        Util::split_into_views(input, separators, m_mode, m_includeDelimiter);
+        Util::split_into_views(input, separators, m_mode, m_include_delimiter);
       REQUIRE(res.size() == expected.size());
-      for (int i = 0, total = expected.size(); i < total; ++i)
+      for (int i = 0, total = expected.size(); i < total; ++i) {
         CHECK(res[i] == expected[i]);
+      }
     }
 
     Mode m_mode;
-    IncludeDelimiter m_includeDelimiter;
+    IncludeDelimiter m_include_delimiter;
   };
 
   SUBCASE("include empty tokens")
@@ -75,17 +76,6 @@ TEST_CASE("util::Tokenizer")
           {"0", "1", "2", "3", "4", "5", "6", "7", "8", "9"});
   }
 
-  SUBCASE("skip last empty token")
-  {
-    SplitTest split(Mode::skip_last_empty);
-    split("", "/", {});
-    split("/", "/", {""});
-    split("a/", "/", {"a"});
-    split("/b", "/", {"", "b"});
-    split("a/b", "/", {"a", "b"});
-    split("/a:", "/:", {"", "a"});
-  }
-
   SUBCASE("include empty and delimiter")
   {
     SplitTest split(Mode::include_empty, IncludeDelimiter::yes);
@@ -111,16 +101,5 @@ TEST_CASE("util::Tokenizer")
     split(".0.1.2.3.4.5.6.7.8.9.",
           "/:.+_abcdef",
           {"0.", "1.", "2.", "3.", "4.", "5.", "6.", "7.", "8.", "9."});
-  }
-
-  SUBCASE("skip last empty and include delimiter")
-  {
-    SplitTest split(Mode::skip_last_empty, IncludeDelimiter::yes);
-    split("", "/", {});
-    split("/", "/", {"/"});
-    split("a/", "/", {"a/"});
-    split("/b", "/", {"/", "b"});
-    split("a/b", "/", {"a/", "b"});
-    split("/a:", "/:", {"/", "a:"});
   }
 }

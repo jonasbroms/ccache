@@ -125,6 +125,7 @@ detect_pch(const std::string& option,
     if (state.found_valid_Fp) { // Use file set by -Fp.
       LOG("Detected use of precompiled header: {}", included_pch_file);
       pch_file = included_pch_file;
+      included_pch_file.clear(); // reset pch file set from /Fp
     } else {
       std::string file = Util::change_extension(arg, ".pch");
       if (Stat::stat(file)) {
@@ -305,8 +306,10 @@ process_arg(const Context& ctx,
     if (argpath[-1] == '-') {
       ++argpath;
     }
-    auto file_args =
-      Args::from_atfile(argpath, ctx.config.is_compiler_group_msvc());
+    auto file_args = Args::from_atfile(argpath,
+                                       config.is_compiler_group_msvc()
+                                         ? Args::AtFileFormat::msvc
+                                         : Args::AtFileFormat::gcc);
     if (!file_args) {
       LOG("Couldn't read arg file {}", argpath);
       return Statistic::bad_compiler_arguments;
@@ -917,26 +920,7 @@ process_arg(const Context& ctx,
     return nullopt;
   }
 
-  // Potentially rewrite concatenated absolute path argument to relative.
-  if (args[i][0] == '-') {
-    const auto slash_pos = Util::is_absolute_path_with_prefix(args[i]);
-    if (slash_pos) {
-      std::string option = args[i].substr(0, *slash_pos);
-      if (compopt_takes_concat_arg(option) && compopt_takes_path(option)) {
-        auto relpath = Util::make_relative_path(
-          ctx, string_view(args[i]).substr(*slash_pos));
-        std::string new_option = option + relpath;
-        if (compopt_affects_cpp_output(option)) {
-          state.cpp_args.push_back(new_option);
-        } else {
-          state.common_args.push_back(new_option);
-        }
-        return nullopt;
-      }
-    }
-  }
-
-  // Detect PCH for options with concatenated path.
+  // Detect PCH for options with concatenated path (relative or absolute).
   if (util::starts_with(args[i], "-Fp") || util::starts_with(args[i], "-Yu")) {
     const size_t path_pos = 3;
     if (!detect_pch(args[i].substr(0, path_pos),
@@ -945,6 +929,27 @@ process_arg(const Context& ctx,
                     false,
                     state)) {
       return Statistic::bad_compiler_arguments;
+    }
+
+    // Fall through to the next section, so intentionally not returning here.
+  }
+
+  // Potentially rewrite concatenated absolute path argument to relative.
+  if (args[i][0] == '-') {
+    const auto path_pos = Util::is_absolute_path_with_prefix(args[i]);
+    if (path_pos) {
+      const std::string option = args[i].substr(0, *path_pos);
+      if (compopt_takes_concat_arg(option) && compopt_takes_path(option)) {
+        const auto relpath =
+          Util::make_relative_path(ctx, string_view(args[i]).substr(*path_pos));
+        std::string new_option = option + relpath;
+        if (compopt_affects_cpp_output(option)) {
+          state.cpp_args.push_back(new_option);
+        } else {
+          state.common_args.push_back(new_option);
+        }
+        return nullopt;
+      }
     }
   }
 
@@ -1016,6 +1021,8 @@ process_arg(const Context& ctx,
 
   // Rewrite to relative to increase hit rate.
   args_info.input_file = Util::make_relative_path(ctx, args[i]);
+  args_info.normalized_input_file =
+    Util::normalize_concrete_absolute_path(args_info.input_file);
 
   return nullopt;
 }

@@ -284,7 +284,7 @@ do_remember_include_file(Context& ctx,
     return true;
   }
 
-  if (path == ctx.args_info.input_file) {
+  if (path == ctx.args_info.normalized_input_file) {
     // Don't remember the input file.
     return true;
   }
@@ -539,6 +539,10 @@ process_preprocessed_file(Context& ctx, Hash& hash, const std::string& path)
       while (q < end && *q != '"') {
         q++;
       }
+      if (p == q) {
+        // Skip empty file name.
+        continue;
+      }
       // Look for preprocessor flags, after the "filename".
       bool system = false;
       const char* r = q + 1;
@@ -553,23 +557,10 @@ process_preprocessed_file(Context& ctx, Hash& hash, const std::string& path)
       if (!ctx.has_absolute_include_headers) {
         ctx.has_absolute_include_headers = util::is_absolute_path(inc_path);
       }
+      inc_path = Util::normalize_concrete_absolute_path(inc_path);
       inc_path = Util::make_relative_path(ctx, inc_path);
 
-      bool should_hash_inc_path = true;
-      if (!ctx.config.hash_dir()) {
-        if (util::starts_with(inc_path, ctx.apparent_cwd)
-            && util::ends_with(inc_path, "//")) {
-          // When compiling with -g or similar, GCC adds the absolute path to
-          // CWD like this:
-          //
-          //   # 1 "CWD//"
-          //
-          // If the user has opted out of including the CWD in the hash, don't
-          // hash it. See also how debug_prefix_map is handled.
-          should_hash_inc_path = false;
-        }
-      }
-      if (should_hash_inc_path) {
+      if ((inc_path != ctx.apparent_cwd) || ctx.config.hash_dir()) {
         hash.hash(inc_path);
       }
 
@@ -590,11 +581,13 @@ process_preprocessed_file(Context& ctx, Hash& hash, const std::string& path)
         "bin directive in source code");
       return nonstd::make_unexpected(
         Failure(Statistic::unsupported_code_directive));
-    } else if (strncmp(q, "___________", 10) == 0) {
+    } else if (strncmp(q, "___________", 10) == 0
+               && (q == data.data() || q[-1] == '\n')) {
       // Unfortunately the distcc-pump wrapper outputs standard output lines:
       // __________Using distcc-pump from /usr/bin
       // __________Using # distcc servers in pump mode
       // __________Shutting down distcc-pump include server
+      hash.hash(p, q - p);
       while (q < end && *q != '\n') {
         q++;
       }
@@ -909,17 +902,29 @@ rewrite_stdout_from_compiler(const Context& ctx, std::string&& stdout_data)
   using util::Tokenizer;
   using Mode = Tokenizer::Mode;
   using IncludeDelimiter = Tokenizer::IncludeDelimiter;
-  // distcc-pump outputs lines like this:
-  //
-  //   __________Using # distcc servers in pump mode
-  //
-  // We don't want to cache those.
   if (!stdout_data.empty()) {
     std::string new_stdout_text;
     for (const auto line : Tokenizer(
            stdout_data, "\n", Mode::include_empty, IncludeDelimiter::yes)) {
       if (util::starts_with(line, "__________")) {
         Util::send_to_fd(ctx, std::string(line), STDOUT_FILENO);
+      }
+      // Ninja uses the lines with 'Note: including file: ' to determine the
+      // used headers. Headers within basedir need to be changed into relative
+      // paths because otherwise Ninja will use the abs path to original header
+      // to check if a file needs to be recompiled.
+      else if (ctx.config.compiler_type() == CompilerType::msvc
+               && !ctx.config.base_dir().empty()
+               && util::starts_with(line, "Note: including file:")) {
+        std::string orig_line(line.data(), line.length());
+        std::string abs_inc_path =
+          util::replace_first(orig_line, "Note: including file:", "");
+        abs_inc_path = util::strip_whitespace(abs_inc_path);
+        std::string rel_inc_path = Util::make_relative_path(
+          ctx, Util::normalize_concrete_absolute_path(abs_inc_path));
+        std::string line_with_rel_inc =
+          util::replace_first(orig_line, abs_inc_path, rel_inc_path);
+        new_stdout_text.append(line_with_rel_inc);
       } else {
         new_stdout_text.append(line.data(), line.length());
       }

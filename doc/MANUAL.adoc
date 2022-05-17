@@ -411,14 +411,21 @@ differ. With *base_dir* set to `/` there will be a cache miss since the
 relative path to `/usr/include/example` will be different. With *base_dir* set
 to `/home/bob/stuff/project1` there will a cache miss since the path to
 project2 will be a different absolute path.
++
+WARNING: Rewriting absolute paths to relative is kind of a brittle hack. It
+works OK in many cases, but there might be cases where things break. One known
+issue is that absolute paths are not reproduced in dependency files, which can
+mess up dependency detection in tools like Make and Ninja. If possible, use
+relative paths in the first place instead instead of using *base_dir*.
 
 [#config_cache_dir]
 *cache_dir* (*CCACHE_DIR*)::
 
     This option specifies where ccache will keep its cached compiler outputs.
     The default is `$XDG_CACHE_HOME/ccache` if `XDG_CACHE_HOME` is set,
-    otherwise `$HOME/.cache/ccache`. Exception: If the legacy directory
-    `$HOME/.ccache` exists then that directory is the default.
+    otherwise `%APPDATA%/ccache` (Windows), `$HOME/Library/Caches/ccache`
+    (macOS) or `$HOME/.config/ccache` (other systems). Exception: If the legacy
+    directory `$HOME/.ccache` exists then that directory is the default.
 +
 See also _<<Location of the primary configuration file>>_.
 +
